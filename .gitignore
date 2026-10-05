@@ -1,0 +1,19 @@
+# Raw and processed clinical data never gets committed, full stop — this
+# includes MIMIC-IV-Ext-BHC (PhysioNet credentialed data, redistribution is
+# against the Data Use Agreement) and any cached MTSamples download.
+data/
+
+# Checkpoints are large and reproducible from config.yaml + train.py; only the
+# final LoRA adapter (12.6 MB) is committed so the app works right after cloning.
+checkpoints/*
+!checkpoints/lora_adapter/
+*.bin
+
+# Standard Python / Jupyter / OS noise
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store
+.env
+venv/
+.venv/

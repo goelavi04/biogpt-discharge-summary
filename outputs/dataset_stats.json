@@ -1,0 +1,38 @@
+{
+  "dataset_mode": "mtsamples",
+  "max_input_tokens": 768,
+  "max_target_tokens": 256,
+  "train": {
+    "n_samples": 80,
+    "avg_input_tokens": 399.1875,
+    "avg_target_tokens": 239.75,
+    "max_input_tokens_seen": 1229,
+    "max_target_tokens_seen": 822,
+    "n_input_truncated": 7,
+    "pct_input_truncated": 8.75,
+    "n_target_truncated": 28,
+    "pct_target_truncated": 35.0
+  },
+  "val": {
+    "n_samples": 10,
+    "avg_input_tokens": 262.3,
+    "avg_target_tokens": 211.8,
+    "max_input_tokens_seen": 527,
+    "max_target_tokens_seen": 546,
+    "n_input_truncated": 0,
+    "pct_input_truncated": 0.0,
+    "n_target_truncated": 3,
+    "pct_target_truncated": 30.0
+  },
+  "test": {
+    "n_samples": 11,
+    "avg_input_tokens": 396.45454545454544,
+    "avg_target_tokens": 251.27272727272728,
+    "max_input_tokens_seen": 854,
+    "max_target_tokens_seen": 594,
+    "n_input_truncated": 2,
+    "pct_input_truncated": 18.18,
+    "n_target_truncated": 5,
+    "pct_target_truncated": 45.45
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "base_model": "microsoft/biogpt",
+  "lora_config": {
+    "r": 16,
+    "alpha": 32,
+    "dropout": 0.05,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "out_proj"
+    ],
+    "bias": "none",
+    "task_type": "CAUSAL_LM"
+  },
+  "training_config": {
+    "per_device_train_batch_size": 4,
+    "per_device_eval_batch_size": 4,
+    "gradient_accumulation_steps": 2,
+    "learning_rate": 0.0002,
+    "num_train_epochs": 20,
+    "early_stopping_patience": 3,
+    "fp16": true,
+    "gradient_checkpointing": true,
+    "eval_strategy": "epoch",
+    "save_strategy": "epoch",
+    "load_best_model_at_end": true,
+    "metric_for_best_model": "eval_loss",
+    "greater_is_better": false,
+    "logging_steps": 1,
+    "warmup_ratio": 0.03,
+    "weight_decay": 0.01,
+    "save_total_limit": 2
+  },
+  "param_counts": {
+    "trainable_params": 3145728,
+    "total_params": 349908992,
+    "trainable_pct": 0.899
+  },
+  "final_train_loss": 2.889437380203834,
+  "best_eval_loss": 2.9213900566101074,
+  "eval_loss_by_epoch": [
+    3.411036968231201,
+    3.077280044555664,
+    3.028582811355591,
+    2.984351396560669,
+    2.962568998336792,
+    2.9476261138916016,
+    2.9437568187713623,
+    2.9332735538482666,
+    2.923677921295166,
+    2.9213900566101074,
+    2.922983407974243,
+    2.9216556549072266,
+    2.926297426223755
+  ],
+  "training_minutes": 3.61,
+  "device": "cuda"
+}

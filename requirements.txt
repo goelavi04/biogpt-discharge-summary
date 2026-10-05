@@ -1,0 +1,26 @@
+# Pinned for reproducibility. Versions chosen to be mutually compatible as of
+# early-2026 and to work on Colab's T4 runtime (CUDA 12.x, Python 3.10/3.11).
+#
+# torch is intentionally NOT pinned here: Colab ships a pre-built torch wheel
+# matched to its CUDA driver, and pip-installing a different torch version is
+# the single most common way to break a Colab GPU runtime. If you're running
+# locally (not on Colab), install torch yourself first per
+# https://pytorch.org/get-started/locally/ before installing this file.
+
+transformers==4.46.3
+datasets==2.21.0
+peft==0.13.2
+accelerate==1.0.1
+evaluate==0.4.3
+rouge_score==0.1.2
+bert_score==0.3.13
+sacremoses==0.1.1      # BioGPT's tokenizer (Moses-based) requires this
+pandas==2.2.3
+matplotlib==3.9.2
+scikit-learn==1.5.2
+pyyaml==6.0.2           # config.yaml loading
+tqdm==4.66.5
+
+# Local web app (app/server.py)
+fastapi==0.115.6
+uvicorn==0.32.1

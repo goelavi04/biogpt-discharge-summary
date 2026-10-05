@@ -1,0 +1,156 @@
+# ============================================================================
+# Single source of truth for paths, dataset choice, and all hyperparameters.
+#
+# WHY one file: every src/*.py script imports `load_config()` from utils.py
+# and reads from this instead of hardcoding numbers. That means (a) you can
+# reproduce a run by keeping this one file, (b) the model card's "Training
+# Details" table can be generated straight from this file instead of
+# transcribed by hand and going stale, and (c) changing e.g. LoRA rank for an
+# ablation touches one line, not five files.
+# ============================================================================
+
+seed: 42
+
+# --------------------------------------------------------------------------
+# Dataset: pick ONE mode. "mimic_bhc" requires you to have already downloaded
+# MIMIC-IV-Ext-BHC from PhysioNet yourself (credentialed access) and placed
+# it at mimic_bhc.raw_path. Nothing in this repo downloads it automatically.
+# "mtsamples" is the public fallback used when you don't have PhysioNet
+# access, e.g. for a quick demo or for grading.
+# --------------------------------------------------------------------------
+dataset:
+  mode: mtsamples  # mimic_bhc | mtsamples
+
+  mimic_bhc:
+    # Column names in your local PhysioNet export. MIMIC-IV-Ext-BHC exports
+    # vary (different notebooks/scripts produce different headers), so these
+    # are configurable rather than hardcoded. data_prep.py will also try a
+    # short list of common aliases automatically and tell you what columns
+    # it actually found if neither the configured name nor an alias matches.
+    raw_path: data/raw/mimic_iv_ext_bhc.csv
+    input_column: "input"
+    target_column: "target"
+    id_column: null   # set to a column name if you want to preserve it; else row index is used
+
+  mtsamples:
+    # Either a local CSV (Kaggle "Medical Transcriptions" export) or, if
+    # raw_path is absent/missing, data_prep.py will try the HF Hub mirror
+    # named in hf_dataset_name.
+    raw_path: data/raw/mtsamples.csv
+    hf_dataset_name: "harishnair04/mtsamples"
+    # Specialties to keep; null = all. The hospital-course regex split already
+    # drops notes without such a section, and many discharge-style notes are
+    # filed under e.g. Orthopedic or Gastroenterology -- keeping all specialties
+    # gives 101 unique pairs vs. 94 for the three summary-like specialties.
+    keep_specialties: null
+
+  # 80/10/10 split, fixed seed (re-uses `seed` above unless overridden here).
+  train_frac: 0.8
+  val_frac: 0.1
+  test_frac: 0.1
+
+  # BioGPT's max context is 1024 tokens. We reserve room for the prompt
+  # template's literal text too, so input + target must stay comfortably
+  # under 1024. Anything longer gets truncated and counted in
+  # outputs/dataset_stats.json so truncation rate is a known, reported number
+  # rather than a silent data-quality problem.
+  max_input_tokens: 768
+  max_target_tokens: 256
+
+paths:
+  processed_dir: data/processed
+  outputs_dir: outputs
+  figures_dir: outputs/figures
+  checkpoints_dir: checkpoints
+
+model:
+  base_model_name: microsoft/biogpt
+
+# --------------------------------------------------------------------------
+# Prompt template. The literal "### Clinical Note:" / "### Brief Hospital
+# Course:" headers give the model a consistent, learnable boundary between
+# input and target, which is also where we cut labels for loss masking
+# (see train.py). </s> is BioGPT's EOS token — the model must learn to emit
+# it so generation knows when to stop instead of rambling to max_new_tokens.
+# --------------------------------------------------------------------------
+prompt_template: "### Clinical Note:\n{input}\n\n### Brief Hospital Course:\n"
+target_suffix: "{target}</s>"
+
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.05
+  # Confirmed against transformers' modeling_biogpt.py: BioGptAttention
+  # defines separate q_proj/k_proj/v_proj/out_proj Linear layers (it does
+  # NOT use GPT-2-style fused c_attn). We target attention only, not the
+  # fc1/fc2 feed-forward layers, to keep the adapter small and focused on
+  # attending to the input note rather than relearning FFN "knowledge".
+  target_modules: ["q_proj", "k_proj", "v_proj", "out_proj"]
+  bias: "none"
+  task_type: "CAUSAL_LM"
+
+training:
+  per_device_train_batch_size: 4
+  per_device_eval_batch_size: 4
+  gradient_accumulation_steps: 2   # effective batch size 8
+  learning_rate: 2.0e-4
+  # First run (3 epochs @ effective batch 16) was only 12 optimizer steps and
+  # val loss was still falling every epoch (3.48 -> 3.32 -> 3.28): badly
+  # undertrained. 20 epochs is an upper bound -- early stopping below halts
+  # once val loss stops improving, and load_best_model_at_end keeps the best
+  # epoch, so overfitting this small dataset is guarded against.
+  num_train_epochs: 20
+  early_stopping_patience: 3   # epochs without val-loss improvement before stopping
+  fp16: true
+  gradient_checkpointing: true
+  eval_strategy: "epoch"
+  save_strategy: "epoch"
+  load_best_model_at_end: true
+  metric_for_best_model: "eval_loss"
+  greater_is_better: false
+  # The mtsamples fallback yields only ~75 training examples (~5 optimizer
+  # steps/epoch at effective batch 16), so log every step -- at 10, the whole
+  # run would produce a single training-loss point and an empty loss curve.
+  logging_steps: 1
+  warmup_ratio: 0.03
+  weight_decay: 0.01
+  save_total_limit: 2   # keep best + most-recent, avoid filling Colab disk
+
+generation:
+  max_new_tokens: 256
+  # Applied to every fine-tuned/base generation (generate.py, evaluate.py, the
+  # app). The first run's greedy outputs were often just "1." or "." (EOS
+  # after 1-2 tokens) or degenerate loops ("IV Ceftriaxone, IV Cefazolin, IV
+  # Ceftriaxone, ..."). min_new_tokens suppresses EOS until 30 tokens exist;
+  # no_repeat_ngram_size=4 blocks verbatim 4-gram repeats (loops) while still
+  # allowing common clinical trigrams like "the patient was" to recur.
+  min_new_tokens: 30
+  no_repeat_ngram_size: 4
+  # Safety valve for Colab's free-tier time limit: generate.py runs 3
+  # forward generations (base_greedy, ft_greedy, ft_sampling) per test
+  # example, which adds up fast on a T4. null = use the full test split;
+  # set an int (e.g. 50) to cap it for a quick end-to-end smoke test.
+  max_test_examples: null
+  greedy:
+    do_sample: false
+  sampling:
+    do_sample: true
+    top_k: 50
+    top_p: 0.95
+    seed: 0               # the single sampling run saved per test example in test_generations.csv
+    num_runs: 3            # for the separate reproducibility analysis in evaluate.py
+    seeds: [0, 1, 2]
+
+evaluation:
+  # Number of test examples used for the sampling-reproducibility check
+  # (3x generation per example is expensive, so we subsample rather than
+  # running it over the full test set).
+  reproducibility_sample_size: 20
+  # BERTScore model: default is a general-domain DeBERTa; swapping in a
+  # biomedical encoder (e.g. a BioClinicalBERT variant) is feasible but not
+  # guaranteed available on every bert-score version, so we fall back
+  # automatically — see evaluate.py for the try/except and which one actually
+  # ran ends up recorded in outputs/metrics.json.
+  bertscore_model_preferred: "emilyalsentzer/Bio_ClinicalBERT"
+  bertscore_model_fallback: "roberta-large"
+  bertscore_lang: "en"
